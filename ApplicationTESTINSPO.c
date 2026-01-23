@@ -83,10 +83,11 @@ void Peripheral_PWM_ActuateMotor(int32_t control)
 			duty_cycle = (int32_t)arr;
 		if (duty_cycle < 0)
 			duty_cycle = 0;
+		// Set PWM: CH1 for forward, CH2 off
 		TIM3->CCR1 = (uint16_t)duty_cycle;
 		TIM3->CCR2 = 0;
 	}
-	else
+	else if (control < 0)
 	{
 		// Counter-clockwise: CH2 active, CH1 = 0
 		// Scale: duty = (|control| * ARR) >> 30
@@ -98,6 +99,7 @@ void Peripheral_PWM_ActuateMotor(int32_t control)
 			duty_cycle = (int32_t)arr;
 		if (duty_cycle < 0)
 			duty_cycle = 0;
+		// Set PWM: CH2 for reverse, CH1 off
 		TIM3->CCR1 = 0;
 		TIM3->CCR2 = (uint16_t)duty_cycle;
 	}

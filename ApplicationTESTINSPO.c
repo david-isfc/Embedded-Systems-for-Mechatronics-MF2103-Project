@@ -54,11 +54,20 @@ void Peripheral_PWM_ActuateMotor(int32_t control)
 		return;
 	}
 	
-	// Scale control signal to duty cycle
-	// Efficient scaling: control is in range [-2^30, 2^30-1]
-	// We want to map this to [0, ARR] for positive, [ARR, 0] for negative
-	// Using bit-shifting: divide by 2^30 and multiply by ARR
-	// But we need to handle the sign properly
+	// Scale control signal to duty cycle using efficient bit-shifting
+	// Input range: -1,073,741,824 to +1,073,741,823 (which is -2^30 to 2^30-1)
+	// We want to map this to [0, ARR] for PWM duty cycle
+	// 
+	// Efficient bit-shifting approach:
+	// Instead of dividing by 1,000,000,000 (approximation), we divide by 2^30 exactly
+	// Dividing by 2^30 is equivalent to right-shifting by 30 bits: value >> 30
+	// This is much faster than division and gives exact scaling
+	// 
+	// Formula: duty = (control * ARR) / 2^30
+	// Using bit-shift: duty = (control * ARR) >> 30
+	// 
+	// Example: control = 1,073,741,823 (100% = 2^30 - 1)
+	//   duty = (1,073,741,823 * ARR) >> 30 ≈ ARR (slightly less, which is correct)
 	
 	int32_t duty_cycle;
 	uint32_t duty_abs;
@@ -66,8 +75,8 @@ void Peripheral_PWM_ActuateMotor(int32_t control)
 	if (control > 0)
 	{
 		// Clockwise: CH1 active, CH2 = 0
-		// Scale: duty = (control * ARR) / (2^30)
-		// Using 64-bit intermediate to avoid overflow
+		// Scale: duty = (control * ARR) >> 30
+		// Using 64-bit intermediate to avoid overflow during multiplication
 		duty_cycle = (int32_t)(((int64_t)control * (int64_t)arr) >> 30);
 		// Clamp to valid range
 		if (duty_cycle > (int32_t)arr)
@@ -80,8 +89,9 @@ void Peripheral_PWM_ActuateMotor(int32_t control)
 	else
 	{
 		// Counter-clockwise: CH2 active, CH1 = 0
-		// Scale: duty = (|control| * ARR) / (2^30)
-		duty_abs = (uint32_t)(-control);  // Make positive
+		// Scale: duty = (|control| * ARR) >> 30
+		// Make control positive first, then apply same bit-shift scaling
+		duty_abs = (uint32_t)(-control);  // Make positive (control is negative)
 		duty_cycle = (int32_t)(((int64_t)duty_abs * (int64_t)arr) >> 30);
 		// Clamp to valid range
 		if (duty_cycle > (int32_t)arr)

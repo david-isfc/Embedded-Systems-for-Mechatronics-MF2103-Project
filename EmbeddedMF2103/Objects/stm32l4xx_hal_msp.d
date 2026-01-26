@@ -1,5 +1,5 @@
 ./objects/stm32l4xx_hal_msp.o: \
-  D:\KTH\ University\MF2103\EmbeddedMF2103\RTE\Device\STM32L476RGTx\STCubeGenerated\Src\stm32l4xx_hal_msp.c \
+  C:\Users\iosif\OneDrive\Documents\GitHub\Embedded-Systems-for-Mechatronics-MF2103-Project\EmbeddedMF2103\RTE\Device\STM32L476RGTx\STCubeGenerated\Src\stm32l4xx_hal_msp.c \
   RTE\_Default\Pre_Include_Global.h \
   RTE\Device\STM32L476RGTx\STCubeGenerated\Inc\main.h \
   C:\Users\iosif\AppData\Local\Arm\Packs\Keil\STM32L4xx_DFP\2.7.0\Drivers\STM32L4xx_HAL_Driver\Inc\stm32l4xx_hal.h \

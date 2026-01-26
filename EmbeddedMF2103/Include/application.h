@@ -4,7 +4,7 @@
 extern "C" {
 #endif
 
-#define PERIOD_CTRL 10		//!< Period of the control loop in milliseconds.
+#define PERIOD_CTRL 50		//!< Period of the control loop in milliseconds.
 #define PERIOD_REF 4000		//!< Period of the reference switch in milliseconds.
 
 /**

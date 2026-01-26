@@ -56,5 +56,6 @@ void Application_Loop()
 
     // Apply control signal to motor
     Peripheral_PWM_ActuateMotor(control);
-  }
+		
+	}
 }

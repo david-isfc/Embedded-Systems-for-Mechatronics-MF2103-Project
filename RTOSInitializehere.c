@@ -36,7 +36,8 @@ void Application_Setup() {
   // Initialize CMSIS-RTOS
   osKernelInitialize();
   // Create the main thread
-  tid_app_main = osThreadNew(app_main, NULL, NULL);
+  const osThreadAttr_t main_attr = {.priority = osPriorityBelowNormal};
+  tid_app_main = osThreadNew(app_main, NULL, &main_attr);
   // Start the kernel
   osKernelStart();
 }
@@ -51,7 +52,7 @@ void app_main(void *argument) {
   // app_ctrl: High priority (runs often: 10ms)
   const osThreadAttr_t ctrl_attr = {.priority = osPriorityAboveNormal};
   tid_app_ctrl = osThreadNew(app_ctrl, NULL, &ctrl_attr);
-  // app_ref: Normal/Low priority (runs rarely: 4000ms)
+  // app_ref: Normal priority (runs rarely: 4000ms)
   const osThreadAttr_t ref_attr = {.priority = osPriorityNormal};
   tid_app_ref = osThreadNew(app_ref, NULL, &ref_attr);
   /* Create and Start Timers */

@@ -1,3 +1,23 @@
+/***
+ * Group: 8
+ *
+ * Members: Alice Ahlberg
+ *          Daniel Fjelkner
+ *          David Georgian Iosifescu
+ *
+ * Course code: MF2103
+ *
+ * Task description: Lab 1 - Controller Implementation
+ *                   Implementation of PI Controller for motor speed control.
+ *
+ * Compiler: ARM GCC
+ *
+ * Other information: Implements a PI controller with anti-windup.
+ *
+ * References: Course material MF2103
+ *
+ ***/
+
 #include "controller.h"
 #include <stdint.h>
 

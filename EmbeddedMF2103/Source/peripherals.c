@@ -1,3 +1,25 @@
+/***
+ * Group: 8
+ *
+ * Members: Alice Ahlberg
+ *          Daniel Fjelkner
+ *          David Georgian Iosifescu
+ *
+ * Course code: MF2103
+ *
+ * Task description: Lab 1 - Peripherals Driver
+ *                   Peripheral driver functions for motor control and encoder
+ * reading.
+ *
+ * Compiler: ARM GCC
+ *
+ * Other information: Handles GPIO, PWM generation, and Encoder reading with
+ * basic filtering.
+ *
+ * References: Course material MF2103
+ *
+ ***/
+
 #include "peripherals.h"
 
 #define RESOLUTION 2048
@@ -53,7 +75,7 @@ void Peripheral_PWM_ActuateMotor(int32_t vel) {
     TIM3->CCR1 = (uint16_t)duty_cycle;
     TIM3->CCR2 = 0;
   } else {
-    duty_abs = (uint32_t)(-vel);
+    duty_abs = (uint32_t)(-vel); // safe now, since vel >= -2^30
 
     duty_cycle = (int32_t)(((int64_t)duty_abs * (int64_t)arr) >> 30);
 
@@ -98,9 +120,11 @@ int32_t Peripheral_Encoder_CalculateVelocity(uint32_t ms) {
   // Reset counter for next interval
   TIM1->EGR |= TIM_EGR_UG;
 
-  // RPM:
+  // -------------------------------------------------------------------------
+  // Instantaneous RPM:
   //   RPM = counts * 60000 / (RESOLUTION * dt_ms)
   //   60000 = 60 s/min * 1000 ms/s
+  // -------------------------------------------------------------------------
   int64_t num = (int64_t)encoder * 60000;             // counts * 60000
   int64_t den = (int64_t)RESOLUTION * (int64_t)dt_ms; // CPR * dt_ms
 
@@ -114,7 +138,7 @@ int32_t Peripheral_Encoder_CalculateVelocity(uint32_t ms) {
   // Implemented as: (alpha_num * rpm + (alpha_den - alpha_num) * rpm_filt) /
   // alpha_den
   {
-    const int32_t alpha_num = 1;
+    const int32_t alpha_num = 1; // alpha = 1/4
     const int32_t alpha_den = 10;
 
     rpm_filt =

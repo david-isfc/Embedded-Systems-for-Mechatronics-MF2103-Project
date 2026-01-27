@@ -5,8 +5,6 @@
 ".\objects\main.o"
 ".\objects\stm32l4xx_it.o"
 ".\objects\retarget_io.o"
-".\objects\startup_stm32l476xx.o"
-".\objects\system_stm32l4xx.o"
 ".\objects\stm32l4xx_hal.o"
 ".\objects\stm32l4xx_hal_cortex.o"
 ".\objects\stm32l4xx_hal_dma.o"
@@ -19,6 +17,8 @@
 ".\objects\stm32l4xx_hal_tim.o"
 ".\objects\stm32l4xx_hal_tim_ex.o"
 ".\objects\stm32l4xx_hal_msp.o"
+".\objects\startup_stm32l476xx.o"
+".\objects\system_stm32l4xx.o"
 --library_type=microlib --ro-base 0x08000000 --entry 0x08000000 --rw-base 0x20000000 --entry Reset_Handler --first __Vectors --strict --summary_stderr --info summarysizes --map --load_addr_map_info --xref --callgraph --symbols
 --info sizes --info totals --info unused --info veneers
 --list ".\Listings\Projects.map" -o .\Objects\Projects.axf

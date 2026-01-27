@@ -18,11 +18,11 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include <stdio.h>
-#include "application.h"
+
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <stdio.h>
+#include "application.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -54,7 +54,7 @@ static void MX_GPIO_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_TIM3_Init(void);
 /* USER CODE BEGIN PFP */
-
+uint32_t Main_GetTickMillisec(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -79,7 +79,10 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
-
+	HAL_TIM_Encoder_Start(&htim1,TIM_CHANNEL_1);
+	HAL_TIM_Encoder_Start(&htim1,TIM_CHANNEL_2);
+	HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
+	HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
   /* USER CODE END Init */
 
   /* Configure the system clock */
@@ -97,16 +100,6 @@ int main(void)
 	Application_Setup();
   /* USER CODE END 2 */
 
-	/* USER CODE BEGIN TIM1_Init 2 */
-	HAL_TIM_Encoder_Start(&htim1,TIM_CHANNEL_1);
-	HAL_TIM_Encoder_Start(&htim1,TIM_CHANNEL_2);
-	/* USER CODE END TIM1_Init 2 */
-	
-	/* USER CODE BEGIN TIM3_Init 2 */
-	HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
-	HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
-	/* USER CODE END TIM3_Init 2 */	
-		
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
@@ -215,7 +208,8 @@ static void MX_TIM1_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN TIM1_Init 2 */
-
+	HAL_TIM_Encoder_Start(&htim1,TIM_CHANNEL_1);
+	HAL_TIM_Encoder_Start(&htim1,TIM_CHANNEL_2);
   /* USER CODE END TIM1_Init 2 */
 
 }
@@ -262,8 +256,13 @@ static void MX_TIM3_Init(void)
   {
     Error_Handler();
   }
+  if (HAL_TIM_PWM_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
+  {
+    Error_Handler();
+  }
   /* USER CODE BEGIN TIM3_Init 2 */
-
+	HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
+	HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
   /* USER CODE END TIM3_Init 2 */
   HAL_TIM_MspPostInit(&htim3);
 

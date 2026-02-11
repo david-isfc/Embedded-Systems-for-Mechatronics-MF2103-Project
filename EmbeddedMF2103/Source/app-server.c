@@ -27,7 +27,6 @@ osTimerId_t timer_ref;
 /* Connection state */
 #ifdef _ETHERNET_ENABLED
 static uint8_t server_socket = 0;
-static uint8_t client_socket = 0;
 static volatile uint8_t connected = 0;
 #endif
 
@@ -56,7 +55,6 @@ void Application_Setup() {
 
 #ifdef _ETHERNET_ENABLED
   server_socket = 0;
-  client_socket = 0;
   connected = 0;
 #endif
 
@@ -71,26 +69,29 @@ void Application_Loop() {
   for (;;) {
     if (!connected) {
       // Try to accept connection
-      server_socket = socket(0, Sn_MR_TCP, SERVER_PORT, Sn_MR_ND);
-      if (server_socket != 0) {
-        if (listen(server_socket) == 0) {
+      // Create socket with server port (socket() binds the port automatically)
+      int8_t result = socket(0, Sn_MR_TCP, SERVER_PORT, 0);
+      if (result >= 0) {
+        server_socket = (uint8_t)result;
+        // Listen for connections (also accepts automatically in WIZnet)
+        if (listen(server_socket) == SOCK_OK) {
           // Wait for connection (check status)
           uint8_t socket_status;
           uint32_t timeout = 0;
           while (timeout < 5000) { // 5 second timeout
-            getsockopt(server_socket, SO_STATUS, &socket_status);
-            if (socket_status == SOCK_ESTABLISHED) {
-              client_socket = server_socket;
-              connected = 1;
-              Controller_Reset();
-              if (timer_ctrl != NULL) {
-                osTimerStart(timer_ctrl, PERIOD_CTRL);
+            if (getsockopt(server_socket, SO_STATUS, &socket_status) == SOCK_OK) {
+              if (socket_status == SOCK_ESTABLISHED) {
+                connected = 1;
+                Controller_Reset();
+                if (timer_ctrl != NULL) {
+                  osTimerStart(timer_ctrl, PERIOD_CTRL);
+                }
+                if (timer_ref != NULL) {
+                  osTimerStart(timer_ref, PERIOD_REF);
+                }
+                osThreadFlagsSet(tid_app_comm, FLAG_connected);
+                break;
               }
-              if (timer_ref != NULL) {
-                osTimerStart(timer_ref, PERIOD_REF);
-              }
-              osThreadFlagsSet(tid_app_comm, FLAG_connected);
-              break;
             }
             osDelay(10);
             timeout += 10;
@@ -179,13 +180,13 @@ void app_comm(void *argument) {
     while (connected) {
       // Check socket status
       uint8_t socket_status;
-      if (getsockopt(client_socket, SO_STATUS, &socket_status) != 0 || socket_status != SOCK_ESTABLISHED) {
+      if (getsockopt(server_socket, SO_STATUS, &socket_status) != SOCK_OK || socket_status != SOCK_ESTABLISHED) {
         connected = 0;
         break;
       }
       
       // Receive velocity data
-      bytes_received = recv(client_socket, (uint8_t*)&rx_data, (uint16_t)sizeof(ClientData_t));
+      bytes_received = recv(server_socket, (uint8_t*)&rx_data, (uint16_t)sizeof(ClientData_t));
       if (bytes_received != (int32_t)sizeof(ClientData_t)) {
         connected = 0;
         break;
@@ -203,7 +204,7 @@ void app_comm(void *argument) {
       
       // Send control signal
       tx_data.control = control;
-      bytes_sent = send(client_socket, (uint8_t*)&tx_data, (uint16_t)sizeof(ServerData_t));
+      bytes_sent = send(server_socket, (uint8_t*)&tx_data, (uint16_t)sizeof(ServerData_t));
       if (bytes_sent != (int32_t)sizeof(ServerData_t)) {
         connected = 0;
         break;
@@ -211,10 +212,6 @@ void app_comm(void *argument) {
     }
     
     // Cleanup on disconnect
-    if (client_socket != 0) {
-      close(client_socket);
-      client_socket = 0;
-    }
     if (server_socket != 0) {
       close(server_socket);
       server_socket = 0;

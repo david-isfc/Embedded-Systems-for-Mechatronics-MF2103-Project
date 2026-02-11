@@ -70,9 +70,12 @@ void Application_Loop() {
       // Try to connect
       uint8_t server_ip[4] = {192, 168, 0, 10};
       
-      client_socket = socket(0, Sn_MR_TCP, 0, 0);
-      if (client_socket != 0) {
-        if (connect(client_socket, server_ip, SERVER_PORT) == 0) {
+      // Create socket (port 0 for client, will be assigned automatically)
+      int8_t result = socket(0, Sn_MR_TCP, 0, 0);
+      if (result >= 0) {
+        client_socket = (uint8_t)result;
+        // Connect to server
+        if (connect(client_socket, server_ip, SERVER_PORT) == SOCK_OK) {
           connected = 1;
           Controller_Reset();
           Peripheral_GPIO_EnableMotor();
@@ -154,7 +157,7 @@ void app_comm(void *argument) {
     while (connected) {
       // Check socket status
       uint8_t socket_status;
-      if (getsockopt(client_socket, SO_STATUS, &socket_status) != 0 || socket_status != SOCK_ESTABLISHED) {
+      if (getsockopt(client_socket, SO_STATUS, &socket_status) != SOCK_OK || socket_status != SOCK_ESTABLISHED) {
         connected = 0;
         break;
       }

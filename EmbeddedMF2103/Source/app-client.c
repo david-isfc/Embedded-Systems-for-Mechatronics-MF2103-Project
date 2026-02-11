@@ -48,12 +48,19 @@ void app_main(void *argument) {
 
     for (;;) {
         if (!connected) {
+            // Ensure hardware is disabled while disconnected
+            Peripheral_GPIO_DisableMotor();
+            Peripheral_PWM_ActuateMotor(0);
+
             if (socket(sn, Sn_MR_TCP, 0, 0) == sn) {
                 if (connect(sn, server_ip, SERVER_PORT) == SOCK_OK) {
+                    // ENABLE MOTOR HARDWARE - Now that we are connected
+                    Peripheral_GPIO_EnableMotor();
+                    
                     connected = 1;
                     osThreadFlagsSet(tid_app_comm, FLAG_CONN_UP);
                 } else {
-                    close(sn); //
+                    close(sn); 
                 }
             }
         }
@@ -63,7 +70,6 @@ void app_main(void *argument) {
 
 void app_ctrl(void *argument) {
     for (;;) {
-        // If stuck here, Timer_Callback is not firing
         osThreadFlagsWait(FLAG_TICK, osFlagsWaitAny, osWaitForever);
         
         global_timestamp = Main_GetTickMillisec();
@@ -72,7 +78,6 @@ void app_ctrl(void *argument) {
         if (connected) {
             osThreadFlagsSet(tid_app_comm, FLAG_TICK); 
             
-            // Wait for Comm thread to finish network trip
             uint32_t flags = osThreadFlagsWait(FLAG_DATA_RX, osFlagsWaitAny, 50);
             
             if (flags & FLAG_DATA_RX) {
@@ -81,7 +86,6 @@ void app_ctrl(void *argument) {
                 Peripheral_PWM_ActuateMotor(0); // Safety timeout
             }
         } else {
-            // Run motor at 0 if not connected, but keep the thread cycling
             Peripheral_PWM_ActuateMotor(0);
         }
     }
@@ -93,11 +97,9 @@ void app_comm(void *argument) {
     uint8_t sn = 0;
 
     for (;;) {
-        // If stuck here, connect() has not succeeded
         osThreadFlagsWait(FLAG_CONN_UP, osFlagsWaitAny, osWaitForever);
         
         while (connected) {
-            // Wait for Ctrl thread to provide new sample
             osThreadFlagsWait(FLAG_TICK, osFlagsWaitAny, osWaitForever);
             
             tx_pkt.velocity = global_velocity;
@@ -114,13 +116,14 @@ void app_comm(void *argument) {
             global_control = rx_pkt.control;
             osThreadFlagsSet(tid_app_ctrl, FLAG_DATA_RX);
         }
-        close(sn); //
+        // Connection lost: clean up
+        close(sn); 
+        Peripheral_GPIO_DisableMotor();
         osThreadFlagsClear(FLAG_TICK);
     }
 }
 
 void Application_Loop(void) {
-    // Yield the processor to other threads
     osThreadYield(); 
 }
 

@@ -24,7 +24,7 @@ osTimerId_t timer_ctrl;
 
 /* Connection state */
 #ifdef _ETHERNET_ENABLED
-static int8_t client_socket = -1;
+static uint8_t client_socket = 0;
 static volatile uint8_t connected = 0;
 #endif
 
@@ -53,7 +53,7 @@ void Application_Setup() {
   Controller_Reset();
 
 #ifdef _ETHERNET_ENABLED
-  client_socket = -1;
+  client_socket = 0;
   connected = 0;
 #endif
 
@@ -68,16 +68,11 @@ void Application_Loop() {
   for (;;) {
     if (!connected) {
       // Try to connect
-      client_socket = socket(AF_INET, SOCK_STREAM, 0);
-      if (client_socket >= 0) {
-        uint8_t server_ip[4] = {192, 168, 0, 10};
-        sockaddr_in server_addr;
-        server_addr.sin_family = AF_INET;
-        server_addr.sin_port = htons(SERVER_PORT);
-        server_addr.sin_addr.s_addr = (server_ip[0] << 24) | (server_ip[1] << 16) | 
-                                       (server_ip[2] << 8) | server_ip[3];
-        
-        if (connect(client_socket, (sockaddr*)&server_addr, sizeof(server_addr)) == 0) {
+      uint8_t server_ip[4] = {192, 168, 0, 10};
+      
+      client_socket = socket(0, Sn_MR_TCP, 0, 0);
+      if (client_socket != 0) {
+        if (connect(client_socket, server_ip, SERVER_PORT) == 0) {
           connected = 1;
           Controller_Reset();
           Peripheral_GPIO_EnableMotor();
@@ -87,12 +82,12 @@ void Application_Loop() {
           osThreadFlagsSet(tid_app_comm, FLAG_connected);
         } else {
           close(client_socket);
-          client_socket = -1;
+          client_socket = 0;
         }
       }
       osDelay(500);
     } else {
-      osDelay(100); // Check connection status periodically
+      osDelay(100);
     }
   }
 #else
@@ -133,7 +128,7 @@ void app_ctrl(void *argument) {
       Peripheral_PWM_ActuateMotor(0);
       Peripheral_GPIO_DisableMotor();
       if (!connected) continue;
-      connected = 0; // Will trigger reconnect in main loop
+      connected = 0;
       continue;
     }
     
@@ -151,34 +146,44 @@ void app_comm(void *argument) {
 #ifdef _ETHERNET_ENABLED
   ClientData_t tx_data;
   ServerData_t rx_data;
+  int32_t bytes_sent, bytes_received;
   
   for (;;) {
     osThreadFlagsWait(FLAG_connected, osFlagsWaitAny, osWaitForever);
     
     while (connected) {
+      // Check socket status
+      uint8_t socket_status;
+      if (getsockopt(client_socket, SO_STATUS, &socket_status) != 0 || socket_status != SOCK_ESTABLISHED) {
+        connected = 0;
+        break;
+      }
+      
       // Send velocity data
       tx_data.velocity = velocity;
       tx_data.timestamp = millisec;
       
-      if (send(client_socket, (uint8_t*)&tx_data, sizeof(ClientData_t), 0) != sizeof(ClientData_t)) {
+      bytes_sent = send(client_socket, (uint8_t*)&tx_data, (uint16_t)sizeof(ClientData_t));
+      if (bytes_sent != (int32_t)sizeof(ClientData_t)) {
         connected = 0;
         break;
       }
       
       // Receive control signal
-      if (recv(client_socket, (uint8_t*)&rx_data, sizeof(ServerData_t), 0) != sizeof(ServerData_t)) {
+      bytes_received = recv(client_socket, (uint8_t*)&rx_data, (uint16_t)sizeof(ServerData_t));
+      if (bytes_received != (int32_t)sizeof(ServerData_t)) {
         connected = 0;
         break;
       }
       
       control = rx_data.control;
-      osThreadFlagsSet(tid_app_ctrl, FLAG_control_ready); // Signal control received
+      osThreadFlagsSet(tid_app_ctrl, FLAG_control_ready);
     }
     
     // Cleanup on disconnect
-    if (client_socket >= 0) {
+    if (client_socket != 0) {
       close(client_socket);
-      client_socket = -1;
+      client_socket = 0;
     }
     Peripheral_PWM_ActuateMotor(0);
     Peripheral_GPIO_DisableMotor();

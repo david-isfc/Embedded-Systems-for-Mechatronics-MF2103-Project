@@ -9,11 +9,9 @@
 #include "wizchip_conf.h"
 #endif
 
-// Removed #define PERIOD_REF 2000 to avoid macro redefinition warning
-
 /* Thread and Timer Flags */
-#define FLAG_TICK       0x01
-#define FLAG_CONN_UP    0x02
+#define FLAG_TICK        0x01
+#define FLAG_CONN_UP     0x02
 
 /* Thread IDs */
 osThreadId_t tid_app_main;
@@ -25,49 +23,58 @@ osTimerId_t timer_ref;
 
 /* Global State */
 static volatile uint8_t connected = 0;
-int32_t reference = 2000;
+int32_t reference = 2000; // Starting reference value
 
-/* --- Function Prototypes (Fixes 'undeclared identifier' errors) --- */
+/* --- Function Prototypes --- */
 void app_main(void *argument);
 void app_ref(void *argument);
 void app_comm(void *argument);
 static void Timer_Callback(void *argument);
 
-/* --- Application Setup --- */
+/**
+ * @brief Setup RTOS kernel and create the Manager thread.
+ */
 void Application_Setup() {
     osKernelInitialize();
     
-    // Create the manager thread
     const osThreadAttr_t main_attr = { .priority = osPriorityBelowNormal, .name = "Manager" };
     tid_app_main = osThreadNew(app_main, NULL, &main_attr);
     
     osKernelStart();
 }
 
-/* --- Main Thread: TCP Listener & Handshaking --- */
+/**
+ * @brief Main Thread: Handles TCP Listening and Thread synchronization.
+ */
 void app_main(void *argument) {
-    // Create sub-threads
+    // 1. Create sub-threads first
     tid_app_ref = osThreadNew(app_ref, NULL, NULL);
     tid_app_comm = osThreadNew(app_comm, NULL, NULL);
-    
-    // Create timer for the reference signal
-    // PERIOD_REF is used from application.h
-    timer_ref = osTimerNew(Timer_Callback, osTimerPeriodic, (void*)tid_app_ref, NULL);
 
-    uint8_t sn = 0; // Use WIZnet Socket 0
+    // 2. Allow kernel to register Thread IDs before creating timer
+    osDelay(100); 
+    
+    timer_ref = osTimerNew(Timer_Callback, osTimerPeriodic, NULL, NULL);
+
+    uint8_t sn = 0; // WIZnet Socket 0
 
     for (;;) {
         if (!connected) {
-            // Open socket with SERVER_PORT from network_protocol.h
+            // Open socket in TCP Server mode
             if (socket(sn, Sn_MR_TCP, SERVER_PORT, 0) == sn) {
                 if (listen(sn) == SOCK_OK) {
                     uint8_t status;
                     while (connected == 0) {
                         getsockopt(sn, SO_STATUS, &status);
+                        
                         if (status == SOCK_ESTABLISHED) {
                             connected = 1;
                             Controller_Reset();
-                            osTimerStart(timer_ref, PERIOD_REF); // Uses definition from application.h
+                            
+                            // Start reference toggle timer (e.g. 2000ms)
+                            osTimerStart(timer_ref, PERIOD_REF); 
+                            
+                            // Signal the Comm thread to begin processing
                             osThreadFlagsSet(tid_app_comm, FLAG_CONN_UP);
                         } else if (status == SOCK_CLOSED) {
                             break; 
@@ -81,17 +88,21 @@ void app_main(void *argument) {
     }
 }
 
-/* --- Communication & Control Thread --- */
+/**
+ * @brief Communication & Control Thread.
+ * Processes incoming sensor data and returns PI control signals.
+ */
 void app_comm(void *argument) {
     ClientData_t rx_pkt;
     ServerData_t tx_pkt;
     uint8_t sn = 0;
 
     for (;;) {
+        // Block until a client connects
         osThreadFlagsWait(FLAG_CONN_UP, osFlagsWaitAny, osWaitForever);
         
         while (connected) {
-            // Wait for sensor data from Client
+            // Blocking receive: wait for packet from Client
             int32_t ret = recv(sn, (uint8_t*)&rx_pkt, sizeof(rx_pkt));
             
             if (ret <= 0) {
@@ -99,36 +110,56 @@ void app_comm(void *argument) {
                 break;
             }
 
-            // Calculate PI signal immediately upon packet arrival
+            // Calculate PI signal based on the current 'reference' global
             tx_pkt.control = Controller_PIController(&reference, &rx_pkt.velocity, &rx_pkt.timestamp);
             
-            // Send back to client
+            // Send control value back to client
             if (send(sn, (uint8_t*)&tx_pkt, sizeof(tx_pkt)) != sizeof(tx_pkt)) {
                 connected = 0;
                 break;
             }
+
+            /* CRITICAL: Yield the CPU to allow app_ref to run! 
+               Without this, app_comm may starve other threads of the same priority. */
+            osThreadYield();
         }
+        
+        // Clean up on disconnect
         osTimerStop(timer_ref);
         close(sn);
+        osThreadFlagsClear(FLAG_CONN_UP);
     }
 }
 
-/* --- Reference Thread --- */
+/**
+ * @brief Reference Thread: Toggles the reference value for a square wave.
+ */
 void app_ref(void *argument) {
     for (;;) {
+        // Wait for the periodic signal from the Timer
         osThreadFlagsWait(FLAG_TICK, osFlagsWaitAny, osWaitForever);
+        
         if (connected) {
-            reference = -reference; // Square wave toggle
+            reference = -reference; // Square wave flip
+            
+            // HEARTBEAT: Toggle Green LED (PA5) to confirm thread is waking up
+            HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5); 
         }
     }
 }
 
-/* --- Helper Callbacks --- */
+/**
+ * @brief Timer Callback: Signals the app_ref thread.
+ */
 static void Timer_Callback(void *argument) {
-    osThreadId_t tid = (osThreadId_t)argument;
-    osThreadFlagsSet(tid, FLAG_TICK);
+    if (tid_app_ref != NULL) {
+        osThreadFlagsSet(tid_app_ref, FLAG_TICK);
+    }
 }
 
+/**
+ * @brief Yields the main loop to RTOS threads.
+ */
 void Application_Loop() {
     osThreadYield();
 }
